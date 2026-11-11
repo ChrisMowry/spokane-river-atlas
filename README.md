@@ -27,7 +27,8 @@ A web map and dashboard for the Spokane River watershed. The atlas shows, in one
 10. [Deployment](#deployment)
 11. [Environment Variables](#environment-variables)
 12. [Conventions](#conventions)
-13. [Roadmap](#roadmap)
+13. [Branching Workflow](#branching-workflow)
+14. [Roadmap](#roadmap)
 
 ---
 
@@ -574,7 +575,7 @@ Hashed assets are cached for a year, and `index.html` is never cached, so a depl
 
 ### CI/CD _(planned)_
 
-GitHub Actions authenticates to AWS with OIDC (no long-lived keys). The pipeline runs lint and tests, then `sam deploy`, and then the frontend publish. `main` deploys to `dev`, and tagged releases deploy to `prod`.
+GitHub Actions authenticates to AWS with OIDC (no long-lived keys). The pipeline runs lint and tests, then `sam deploy`, and then the frontend publish. Merges to the `dev` branch deploy to the `dev` environment, and merges to `main` deploy to `prod` (see [Branching Workflow](#branching-workflow)).
 
 ---
 
@@ -611,6 +612,42 @@ Never commit secrets. Keep `.env.local` gitignored. Any secret API keys a backen
 - **Units:** flow in cfs, gage height in ft, and temperature stored in °C. The UI lets users toggle °F/°C.
 - **Resource naming:** `spokane-river-atlas-<resource>-<stage>`.
 - **Tags** on all AWS resources: `Project=spokane-river-atlas`, `Stage=<stage>`.
+
+---
+
+## Branching Workflow
+
+```
+feature/xyz ──PR──▶ dev ──PR──▶ main
+```
+
+| Branch | Purpose | Protection |
+| --- | --- | --- |
+| `main` | Released code (deploys to `prod`) | PR required, no direct pushes (admins included), no force-push or deletion, conversations resolved, **PRs must come from `dev`** |
+| `dev` | Integration branch and repo **default** (deploys to the `dev` environment) | PR required, no direct pushes (admins included), no force-push or deletion, conversations resolved |
+| `feature/*`, `fix/*`, `docs/*`, `chore/*` | Short-lived work branches | None |
+
+**Day-to-day work**
+
+```bash
+git switch dev && git pull
+git switch -c feature/streamflow-chart
+# ...commit work...
+git push -u origin feature/streamflow-chart
+gh pr create --base dev            # dev is the default base, so --base is optional
+```
+
+After the PR to `dev` is reviewed, merge it and delete the feature branch.
+
+**Promoting to `main`**
+
+```bash
+gh pr create --base main --head dev --title "Release: <summary>"
+```
+
+The `Branch flow` GitHub Action (`.github/workflows/branch-flow.yml`) runs on every PR into `main`. It fails unless the source branch is `dev` from this repository. Its check, **"PR to main must come from dev"**, is required, so PRs from any other branch can't be merged into `main`.
+
+Merge `dev` → `main` with a **merge commit**, not a squash, so `main` and `dev` keep the same history and future promotions don't show already-released commits as new.
 
 ---
 
